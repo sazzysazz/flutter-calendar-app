@@ -22,7 +22,9 @@ class HolidayAdapter extends TypeAdapter<Holiday> {
       type: fields[2] as String,
       description: fields[3] as String?,
       colorCode: fields[4] as int,
-    );
+    )
+      ..hour = fields[5] as int?
+      ..minute = fields[6] as int?;
   }
 
   @override
