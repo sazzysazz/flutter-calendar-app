@@ -6,27 +6,31 @@ part 'holiday.g.dart';
 @HiveType(typeId: 0)
 class Holiday extends HiveObject {
   @HiveField(0)
-  String name;
+  String id; // required unique ID
 
   @HiveField(1)
-  DateTime date;
+  String name;
 
   @HiveField(2)
-  String type;
+  DateTime date;
 
   @HiveField(3)
-  String? description;
+  String type;
 
   @HiveField(4)
-  int colorCode;
+  String? description;
 
   @HiveField(5)
-  int? hour;
+  int colorCode;
 
   @HiveField(6)
+  int? hour;
+
+  @HiveField(7)
   int? minute;
 
   Holiday({
+    required this.id,
     required this.name,
     required this.date,
     required this.type,
@@ -37,11 +41,8 @@ class Holiday extends HiveObject {
         minute = time?.minute;
 
   TimeOfDay? get time =>
-      (hour != null && minute != null)
-          ? TimeOfDay(hour: hour!, minute: minute!)
-          : null;
+      (hour != null && minute != null) ? TimeOfDay(hour: hour!, minute: minute!) : null;
 
-  /// Used for editing – updates this object
   void updateEvent({
     required String name,
     String? description,
@@ -57,6 +58,7 @@ class Holiday extends HiveObject {
 
   factory Holiday.fromJson(Map<String, dynamic> json) {
     return Holiday(
+      id: json['id'] ?? DateTime.now().millisecondsSinceEpoch.toString(),
       name: json['name'],
       date: DateTime.parse(json['date']),
       type: json['type'] ?? 'Public',

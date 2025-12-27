@@ -220,6 +220,7 @@ class _AddEventDialogState extends State<AddEventDialog> {
               ? () {
                   if (_formKey.currentState!.validate()) {
                     final event = Holiday(
+                      id: widget.existingEvent?.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
                       name: _nameController.text.trim(),
                       date: displayDate,
                       type: widget.existingEvent?.type ?? 'Custom',

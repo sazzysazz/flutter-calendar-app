@@ -1,21 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'models/holiday.dart';
-import 'services/event_database.dart'; // ← Import your EventDatabase
-// import 'screens/calendar_page.dart';   // or 'pages/calendar_page.dart'
+import 'services/event_database.dart';
+import 'screens/calendar_page.dart';
 import 'screens/splash_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Hive.initFlutter();
-
-  // ✅ FIX: prevent double adapter registration
-  if (!Hive.isAdapterRegistered(0)) {
-    Hive.registerAdapter(HolidayAdapter());
-  }
-
+  Hive.registerAdapter(HolidayAdapter());
   await EventDatabase.init();
-
   runApp(const MyApp());
 }
 
@@ -30,8 +24,7 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(primarySwatch: Colors.blue, useMaterial3: true),
       darkTheme: ThemeData.dark().copyWith(useMaterial3: true),
       themeMode: ThemeMode.system,
-      // home: const CalendarPage()
-      home: const SplashScreen(), // ← Starts with splash
+      home: const SplashScreen(),
     );
   }
 }
