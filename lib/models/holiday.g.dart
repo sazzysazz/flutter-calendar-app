@@ -17,36 +17,33 @@ class HolidayAdapter extends TypeAdapter<Holiday> {
       for (int i = 0; i < numOfFields; i++) reader.readByte(): reader.read(),
     };
     return Holiday(
-      id: fields[0] as String,
-      name: fields[1] as String,
-      date: fields[2] as DateTime,
-      type: fields[3] as String,
-      description: fields[4] as String?,
-      colorCode: fields[5] as int,
+      name: fields[0] as String,
+      date: fields[1] as DateTime,
+      type: fields[2] as String,
+      description: fields[3] as String?,
+      colorCode: fields[4] as int,
     )
-      ..hour = fields[6] as int?
-      ..minute = fields[7] as int?;
+      ..hour = fields[5] as int?
+      ..minute = fields[6] as int?;
   }
 
   @override
   void write(BinaryWriter writer, Holiday obj) {
     writer
-      ..writeByte(8)
-      ..writeByte(0)
-      ..write(obj.id)
-      ..writeByte(1)
-      ..write(obj.name)
-      ..writeByte(2)
-      ..write(obj.date)
-      ..writeByte(3)
-      ..write(obj.type)
-      ..writeByte(4)
-      ..write(obj.description)
-      ..writeByte(5)
-      ..write(obj.colorCode)
-      ..writeByte(6)
-      ..write(obj.hour)
       ..writeByte(7)
+      ..writeByte(0)
+      ..write(obj.name)
+      ..writeByte(1)
+      ..write(obj.date)
+      ..writeByte(2)
+      ..write(obj.type)
+      ..writeByte(3)
+      ..write(obj.description)
+      ..writeByte(4)
+      ..write(obj.colorCode)
+      ..writeByte(5)
+      ..write(obj.hour)
+      ..writeByte(6)
       ..write(obj.minute);
   }
 
