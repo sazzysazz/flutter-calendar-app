@@ -4,7 +4,7 @@ import '../models/holiday.dart';
 
 class AddEventDialog extends StatefulWidget {
   final DateTime selectedDay;
-  final Holiday? existingEvent; // null = add new, not null = edit
+  final Holiday? existingEvent;
 
   const AddEventDialog({
     super.key,
@@ -18,13 +18,13 @@ class AddEventDialog extends StatefulWidget {
 
 class _AddEventDialogState extends State<AddEventDialog> {
   final _formKey = GlobalKey<FormState>();
-
   late TextEditingController _nameController;
   late TextEditingController _descController;
-
   TimeOfDay? _pickedTime;
   bool _isAllDay = false;
   late int _selectedColor;
+  late DateTime _startDate;
+  late DateTime? _endDate;
 
   final List<int> _colorPalette = [
     0xFFEF5350, 0xFFEC407A, 0xFFAB47BC, 0xFF7E57C2,
@@ -37,16 +37,18 @@ class _AddEventDialogState extends State<AddEventDialog> {
   void initState() {
     super.initState();
 
-    // Pre-fill fields when editing
-    _nameController = TextEditingController(text: widget.existingEvent?.name ?? '');
-    _descController = TextEditingController(text: widget.existingEvent?.description ?? '');
-    _pickedTime = widget.existingEvent?.time;
-    _selectedColor = widget.existingEvent?.colorCode ?? 0xFF2196F3;
+    final existing = widget.existingEvent;
+    _nameController = TextEditingController(text: existing?.name ?? '');
+    _descController = TextEditingController(text: existing?.description ?? '');
+    _pickedTime = existing?.time;
+    _selectedColor = existing?.colorCode ?? 0xFF2196F3;
 
-    // If no time is set → treat as all-day
-    _isAllDay = widget.existingEvent?.time == null;
+    // If existing event has no time → treat as all-day
+    _isAllDay = existing?.time == null;
 
-    // Update button state when typing
+    _startDate = existing?.startDate ?? widget.selectedDay;
+    _endDate = existing?.endDate;
+
     _nameController.addListener(() => setState(() {}));
   }
 
@@ -57,11 +59,11 @@ class _AddEventDialogState extends State<AddEventDialog> {
     super.dispose();
   }
 
+  bool get _canSave => _nameController.text.trim().isNotEmpty;
+
   @override
   Widget build(BuildContext context) {
     final bool isEditing = widget.existingEvent != null;
-    final DateTime displayDate = isEditing ? widget.existingEvent!.date : widget.selectedDay;
-    final bool canSave = _nameController.text.trim().isNotEmpty;
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
 
     return AlertDialog(
@@ -81,17 +83,66 @@ class _AddEventDialogState extends State<AddEventDialog> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Selected date display
+                // Start Date
                 ListTile(
                   leading: const Icon(Icons.calendar_today),
-                  title: Text(
-                    DateFormat('EEEE, MMMM d, yyyy').format(displayDate),
-                    style: const TextStyle(fontWeight: FontWeight.w600),
-                  ),
+                  title: const Text('Start Date', style: TextStyle(fontWeight: FontWeight.w600)),
+                  subtitle: Text(DateFormat('EEEE, MMMM d, yyyy').format(_startDate)),
+                  onTap: () async {
+                    final picked = await showDatePicker(
+                      context: context,
+                      initialDate: _startDate,
+                      firstDate: DateTime(2020),
+                      lastDate: DateTime(2030),
+                    );
+                    if (picked != null) {
+                      setState(() {
+                        _startDate = picked;
+                        if (_endDate != null && _endDate!.isBefore(picked)) {
+                          _endDate = picked;
+                        }
+                      });
+                    }
+                  },
                 ),
-                const Divider(height: 24),
 
-                // Event Name (required)
+                // Multi-day toggle
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Multi-day event'),
+                  subtitle: const Text('Event spans multiple days'),
+                  value: _endDate != null,
+                  onChanged: (value) {
+                    setState(() {
+                      _endDate = value ? _startDate : null;
+                    });
+                  },
+                ),
+
+                // End Date (if multi-day)
+                if (_endDate != null) ...[
+                  const SizedBox(height: 8),
+                  ListTile(
+                    leading: const Icon(Icons.calendar_today_outlined),
+                    title: const Text('End Date', style: TextStyle(fontWeight: FontWeight.w600)),
+                    subtitle: Text(DateFormat('EEEE, MMMM d, yyyy').format(_endDate!)),
+                    onTap: () async {
+                      final picked = await showDatePicker(
+                        context: context,
+                        initialDate: _endDate!,
+                        firstDate: _startDate,
+                        lastDate: DateTime(2030),
+                      );
+                      if (picked != null) {
+                        setState(() => _endDate = picked);
+                      }
+                    },
+                  ),
+                ],
+
+                const Divider(height: 32),
+
+                // Event Name
                 TextFormField(
                   controller: _nameController,
                   decoration: const InputDecoration(
@@ -104,7 +155,7 @@ class _AddEventDialogState extends State<AddEventDialog> {
                 ),
                 const SizedBox(height: 16),
 
-                // Description (optional)
+                // Description
                 TextField(
                   controller: _descController,
                   maxLines: 3,
@@ -124,12 +175,14 @@ class _AddEventDialogState extends State<AddEventDialog> {
                   onChanged: (value) {
                     setState(() {
                       _isAllDay = value;
-                      if (value) _pickedTime = null;
+                      if (value) {
+                        _pickedTime = null; // Clear time when all-day
+                      }
                     });
                   },
                 ),
 
-                // Time picker — only shown when not all-day
+                // Time picker — only visible if NOT all-day
                 if (!_isAllDay) ...[
                   const SizedBox(height: 8),
                   Row(
@@ -187,18 +240,10 @@ class _AddEventDialogState extends State<AddEventDialog> {
                             width: isSelected ? 4 : 0,
                           ),
                           boxShadow: isSelected
-                              ? const [
-                                  BoxShadow(
-                                    color: Colors.black26,
-                                    blurRadius: 10,
-                                    offset: Offset(0, 4),
-                                  )
-                                ]
+                              ? [BoxShadow(color: Colors.black26, blurRadius: 10, offset: const Offset(0, 4))]
                               : null,
                         ),
-                        child: isSelected
-                            ? const Icon(Icons.check, color: Colors.white, size: 28)
-                            : null,
+                        child: isSelected ? const Icon(Icons.check, color: Colors.white, size: 28) : null,
                       ),
                     );
                   }).toList(),
@@ -211,33 +256,30 @@ class _AddEventDialogState extends State<AddEventDialog> {
       actionsPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       actionsAlignment: MainAxisAlignment.spaceBetween,
       actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
-        ),
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
         ElevatedButton.icon(
-          onPressed: canSave
+          onPressed: _canSave
               ? () {
                   if (_formKey.currentState!.validate()) {
                     final event = Holiday(
                       name: _nameController.text.trim(),
-                      date: displayDate,
+                      startDate: _startDate,
+                      endDate: _endDate,
                       type: widget.existingEvent?.type ?? 'Custom',
-                      description: _descController.text.trim().isEmpty
-                          ? null
-                          : _descController.text.trim(),
+                      description: _descController.text.trim().isEmpty ? null : _descController.text.trim(),
+                      // Only pass time if NOT all-day and time is picked
                       time: _isAllDay ? null : _pickedTime,
                       colorCode: _selectedColor,
                     );
-                    Navigator.pop(context, event); // Return created/updated event
+                    Navigator.pop(context, event);
                   }
                 }
               : null,
           icon: Icon(isEditing ? Icons.save : Icons.add, size: 20),
           label: Text(isEditing ? 'Save Changes' : 'Add Event'),
           style: ElevatedButton.styleFrom(
-            backgroundColor: canSave ? Color(_selectedColor) : null,
-            foregroundColor: canSave ? Colors.white : null,
+            backgroundColor: _canSave ? Color(_selectedColor) : null,
+            foregroundColor: _canSave ? Colors.white : null,
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             elevation: 6,

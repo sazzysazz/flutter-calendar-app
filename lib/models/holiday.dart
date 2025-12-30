@@ -1,15 +1,25 @@
 import 'package:flutter/material.dart';
-import 'package:hive_flutter/hive_flutter.dart';
+import 'package:hive/hive.dart';
 
 part 'holiday.g.dart';
+
+/// Helper extension – strips time part, keeps only year/month/day
+extension DateTimeExtension on DateTime {
+  DateTime stripTime() => DateTime(year, month, day);
+}
 
 @HiveType(typeId: 0)
 class Holiday extends HiveObject {
   @HiveField(0)
   String name;
 
+  /// Start of the event (always required)
   @HiveField(1)
-  DateTime date;
+  DateTime startDate;
+
+  /// End of the event – null = single-day event
+  @HiveField(7) // Use a higher index to avoid conflicting with existing data
+  DateTime? endDate;
 
   @HiveField(2)
   String type;
@@ -28,7 +38,8 @@ class Holiday extends HiveObject {
 
   Holiday({
     required this.name,
-    required this.date,
+    required this.startDate,
+    this.endDate,
     required this.type,
     this.description,
     this.colorCode = 0xFF2196F3,
@@ -36,29 +47,49 @@ class Holiday extends HiveObject {
   })  : hour = time?.hour,
         minute = time?.minute;
 
+  /// Stripped start date (for mapping / comparison)
+  DateTime get startDay => startDate.stripTime();
+
+  /// Stripped end date – falls back to startDate if null
+  DateTime get endDay => (endDate ?? startDate).stripTime();
+
+  /// Does this event cover the given day?
+  bool coversDay(DateTime day) {
+    final d = day.stripTime();
+    return !d.isBefore(startDay) && !d.isAfter(endDay);
+  }
+
+  /// Time of day (if set)
   TimeOfDay? get time =>
       (hour != null && minute != null)
           ? TimeOfDay(hour: hour!, minute: minute!)
           : null;
 
-  /// Used for editing – updates this object
+  /// Update an existing event (used in edit dialog)
   void updateEvent({
     required String name,
     String? description,
     TimeOfDay? time,
     required int colorCode,
+    required DateTime startDate,
+    DateTime? endDate,
   }) {
     this.name = name;
     this.description = description;
     this.hour = time?.hour;
     this.minute = time?.minute;
     this.colorCode = colorCode;
+    this.startDate = startDate;
+    this.endDate = endDate;
   }
 
+  /// Parse from public holiday API JSON
   factory Holiday.fromJson(Map<String, dynamic> json) {
+    final date = DateTime.parse(json['date']);
     return Holiday(
       name: json['name'],
-      date: DateTime.parse(json['date']),
+      startDate: date,
+      endDate: null, // Public holidays are always single-day
       type: json['type'] ?? 'Public',
       description: json['description'],
       colorCode: _getColorForType(json['type'] ?? 'Public'),

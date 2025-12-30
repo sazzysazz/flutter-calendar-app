@@ -18,7 +18,8 @@ class HolidayAdapter extends TypeAdapter<Holiday> {
     };
     return Holiday(
       name: fields[0] as String,
-      date: fields[1] as DateTime,
+      startDate: fields[1] as DateTime,
+      endDate: fields[7] as DateTime?,
       type: fields[2] as String,
       description: fields[3] as String?,
       colorCode: fields[4] as int,
@@ -30,11 +31,13 @@ class HolidayAdapter extends TypeAdapter<Holiday> {
   @override
   void write(BinaryWriter writer, Holiday obj) {
     writer
-      ..writeByte(7)
+      ..writeByte(8)
       ..writeByte(0)
       ..write(obj.name)
       ..writeByte(1)
-      ..write(obj.date)
+      ..write(obj.startDate)
+      ..writeByte(7)
+      ..write(obj.endDate)
       ..writeByte(2)
       ..write(obj.type)
       ..writeByte(3)
