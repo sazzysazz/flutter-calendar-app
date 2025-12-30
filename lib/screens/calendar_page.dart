@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../models/holiday.dart';
 import '../services/holiday_service.dart';
 import '../services/event_database.dart';
+import '../services/notification_service.dart';
 import '../widgets/add_event_dialog.dart';
 
 // No need to redefine the extension here — it's already in holiday.dart
@@ -67,8 +68,9 @@ class _CalendarPageState extends State<CalendarPage> {
       builder: (_) => AddEventDialog(selectedDay: _selectedDay),
     );
     if (newEvent != null) {
-      await EventDatabase.saveEvent(newEvent);
-      await loadHolidays();
+        await EventDatabase.saveEvent(newEvent);
+        await NotificationService.scheduleEventNotification(newEvent);
+        await loadHolidays();
     }
   }
 
@@ -85,56 +87,80 @@ class _CalendarPageState extends State<CalendarPage> {
   }
 
   void _editEvent(Holiday oldEvent) async {
-    final updatedEvent = await showDialog<Holiday>(
-      context: context,
-      builder: (_) => AddEventDialog(
-        selectedDay: oldEvent.startDate,
-        existingEvent: oldEvent,
-      ),
+  final updatedEvent = await showDialog<Holiday>(
+    context: context,
+    builder: (_) => AddEventDialog(
+      selectedDay: oldEvent.startDate,
+      existingEvent: oldEvent,
+    ),
+  );
+
+  if (updatedEvent != null) {
+    //  Cancel old notification first
+    await NotificationService.cancelEventNotification(oldEvent);
+
+    // Update Hive object
+    oldEvent.updateEvent(
+      name: updatedEvent.name,
+      description: updatedEvent.description,
+      time: updatedEvent.time,
+      colorCode: updatedEvent.colorCode,
+      startDate: updatedEvent.startDate,
+      endDate: updatedEvent.endDate,
     );
 
-    if (updatedEvent != null) {
-      oldEvent.updateEvent(
-        name: updatedEvent.name,
-        description: updatedEvent.description,
-        time: updatedEvent.time,
-        colorCode: updatedEvent.colorCode,
-        startDate: updatedEvent.startDate,
-        endDate: updatedEvent.endDate,
-      );
-      await oldEvent.save();
-      await loadHolidays();
-    }
-  }
+    await oldEvent.save();
 
-  void _deleteEvent(Holiday event) {
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Delete Event?'),
-        content: Text('Are you sure you want to delete "${event.name}"? This cannot be undone.'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          TextButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              await EventDatabase.deleteEvent(event);
-              await loadHolidays();
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Event deleted'),
-                    backgroundColor: Colors.red,
-                  ),
-                );
-              }
-            },
-            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+    // 🔔 Schedule new notification
+    await NotificationService.scheduleEventNotification(oldEvent);
+
+    await loadHolidays();
+  }
+}
+
+
+void _deleteEvent(Holiday event) {
+  showDialog(
+    context: context,
+    builder: (_) => AlertDialog(
+      title: const Text('Delete Event?'),
+      content: Text(
+        'Are you sure you want to delete "${event.name}"? This cannot be undone.',
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        TextButton(
+          onPressed: () async {
+            Navigator.pop(context);
+
+            // Cancel notification
+            await NotificationService.cancelEventNotification(event);
+
+            // Delete from Hive
+            await EventDatabase.deleteEvent(event);
+            await loadHolidays();
+
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Event deleted'),
+                  backgroundColor: Colors.red,
+                ),
+              );
+            }
+          },
+          child: const Text(
+            'Delete',
+            style: TextStyle(color: Colors.red),
           ),
-        ],
-      ),
-    );
-  }
+        ),
+      ],
+    ),
+  );
+}
 
   @override
   Widget build(BuildContext context) {
