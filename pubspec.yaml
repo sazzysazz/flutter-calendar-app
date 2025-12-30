@@ -37,7 +37,7 @@ dependencies:
   path_provider: ^2.1.5
 
   # Notifications & Timezone (only ONE version each)
-  flutter_local_notifications: ^17.2.3   # Latest stable and working
+  # flutter_local_notifications: ^17.2.3   # Latest stable and working
   timezone: ^0.9.4                       # Matches the version we need
 
   # The following adds the Cupertino Icons font to your application.

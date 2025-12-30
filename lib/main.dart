@@ -4,7 +4,6 @@ import 'models/holiday.dart';
 import 'services/event_database.dart';  // ← Import your EventDatabase
 // import 'screens/calendar_page.dart';   // or 'pages/calendar_page.dart'
 import 'screens/splash_screen.dart';
-import 'services/notification_service.dart'; // 🔔 Import NotificationService
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -14,8 +13,6 @@ void main() async {
 
   // Register the generated adapter
   Hive.registerAdapter(HolidayAdapter());
-
-   await NotificationService.init(); // 🔔 ADD THIS
 
   // Open the custom events box via EventDatabase (centralized)
   await EventDatabase.init();
