@@ -8,10 +8,8 @@ import '../widgets/add_event_dialog.dart';
 
 // No need to redefine the extension here — it's already in holiday.dart
 // extension DateTimeExtension on DateTime { ... } ← REMOVED
-
 class CalendarPage extends StatefulWidget {
   const CalendarPage({super.key});
-
   @override
   State<CalendarPage> createState() => _CalendarPageState();
 }
@@ -22,7 +20,6 @@ class _CalendarPageState extends State<CalendarPage> {
   List<Holiday> _allEvents = [];
   List<Holiday> _searchResults = [];
   final TextEditingController _searchController = TextEditingController();
-
   @override
   void initState() {
     super.initState();
@@ -44,9 +41,7 @@ class _CalendarPageState extends State<CalendarPage> {
   Future<void> loadHolidays() async {
     final publicHolidays = await HolidayService.fetchHolidays();
     final customEvents = EventDatabase.getAllEvents();
-
     final allEvents = <Holiday>[...publicHolidays, ...customEvents];
-
     if (mounted) {
       setState(() {
         _allEvents = allEvents;
@@ -92,7 +87,6 @@ class _CalendarPageState extends State<CalendarPage> {
         existingEvent: oldEvent,
       ),
     );
-
     if (updatedEvent != null) {
       oldEvent.updateEvent(
         name: updatedEvent.name,
@@ -112,9 +106,14 @@ class _CalendarPageState extends State<CalendarPage> {
       context: context,
       builder: (_) => AlertDialog(
         title: const Text('Delete Event?'),
-        content: Text('Are you sure you want to delete "${event.name}"? This cannot be undone.'),
+        content: Text(
+          'Are you sure you want to delete "${event.name}"? This cannot be undone.',
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
           TextButton(
             onPressed: () async {
               Navigator.pop(context);
@@ -143,7 +142,6 @@ class _CalendarPageState extends State<CalendarPage> {
     final primaryColor = theme.colorScheme.primary;
     final surfaceColor = isDark ? Colors.grey[900]! : Colors.white;
     final scaffoldColor = isDark ? Colors.black : Colors.grey[50];
-
     return Scaffold(
       backgroundColor: scaffoldColor,
       floatingActionButton: FloatingActionButton(
@@ -201,7 +199,10 @@ class _CalendarPageState extends State<CalendarPage> {
                             )
                           : null,
                       border: InputBorder.none,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 14,
+                      ),
                     ),
                     onChanged: _onSearchChanged,
                   ),
@@ -209,7 +210,6 @@ class _CalendarPageState extends State<CalendarPage> {
               ),
             ),
           ),
-
           // Search Results Panel
           if (_searchResults.isNotEmpty)
             SliverToBoxAdapter(
@@ -262,7 +262,10 @@ class _CalendarPageState extends State<CalendarPage> {
                         itemBuilder: (context, index) {
                           final event = _searchResults[index];
                           return Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 4,
+                            ),
                             child: _EventCard(
                               event: event,
                               onEdit: () => _editEvent(event),
@@ -276,7 +279,6 @@ class _CalendarPageState extends State<CalendarPage> {
                 ),
               ),
             ),
-
           // Calendar
           SliverToBoxAdapter(
             child: Padding(
@@ -311,14 +313,29 @@ class _CalendarPageState extends State<CalendarPage> {
                   headerStyle: const HeaderStyle(
                     formatButtonVisible: false,
                     titleCentered: true,
-                    titleTextStyle: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                    titleTextStyle: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                   calendarStyle: CalendarStyle(
                     outsideDaysVisible: false,
-                    todayDecoration: BoxDecoration(color: primaryColor.withOpacity(0.1), shape: BoxShape.circle),
-                    selectedDecoration: BoxDecoration(color: primaryColor, shape: BoxShape.circle),
-                    todayTextStyle: TextStyle(color: primaryColor, fontWeight: FontWeight.bold),
-                    selectedTextStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                    todayDecoration: BoxDecoration(
+                      color: primaryColor.withOpacity(0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    selectedDecoration: BoxDecoration(
+                      color: primaryColor,
+                      shape: BoxShape.circle,
+                    ),
+                    todayTextStyle: TextStyle(
+                      color: primaryColor,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    selectedTextStyle: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   calendarBuilders: CalendarBuilders(
                     markerBuilder: (context, date, events) {
@@ -331,14 +348,19 @@ class _CalendarPageState extends State<CalendarPage> {
                             final Holiday holiday = e as Holiday;
                             final color = Color(holiday.colorCode);
                             return Container(
-                              margin: const EdgeInsets.symmetric(horizontal: 1.5),
+                              margin: const EdgeInsets.symmetric(
+                                horizontal: 1.5,
+                              ),
                               width: 8,
                               height: 8,
                               decoration: BoxDecoration(
                                 color: color,
                                 shape: BoxShape.circle,
                                 border: holiday.endDate != null
-                                    ? Border.all(color: Colors.white, width: 1.5)
+                                    ? Border.all(
+                                        color: Colors.white,
+                                        width: 1.5,
+                                      )
                                     : null,
                               ),
                             );
@@ -351,7 +373,6 @@ class _CalendarPageState extends State<CalendarPage> {
               ),
             ),
           ),
-
           // Selected day header (only when not searching)
           if (_searchResults.isEmpty)
             SliverToBoxAdapter(
@@ -365,12 +386,19 @@ class _CalendarPageState extends State<CalendarPage> {
                       children: [
                         Text(
                           DateFormat('EEEE').format(_selectedDay),
-                          style: TextStyle(fontSize: 14, color: primaryColor, fontWeight: FontWeight.w600),
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: primaryColor,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                         const SizedBox(height: 4),
                         Text(
                           DateFormat('MMMM d, yyyy').format(_selectedDay),
-                          style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                          style: const TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ],
                     ),
@@ -378,32 +406,28 @@ class _CalendarPageState extends State<CalendarPage> {
                 ),
               ),
             ),
-
           // Events list or empty state (only when not searching)
           if (_searchResults.isEmpty)
             () {
               final eventsToday = getEventsForDay(_selectedDay);
               if (eventsToday.isNotEmpty) {
                 return SliverList(
-                  delegate: SliverChildBuilderDelegate(
-                    (context, index) {
-                      final event = eventsToday[index];
-                      return Padding(
-                        padding: EdgeInsets.fromLTRB(
-                          24,
-                          index == 0 ? 0 : 8,
-                          24,
-                          index == eventsToday.length - 1 ? 24 : 8,
-                        ),
-                        child: _EventCard(
-                          event: event,
-                          onEdit: () => _editEvent(event),
-                          onDelete: () => _deleteEvent(event),
-                        ),
-                      );
-                    },
-                    childCount: eventsToday.length,
-                  ),
+                  delegate: SliverChildBuilderDelegate((context, index) {
+                    final event = eventsToday[index];
+                    return Padding(
+                      padding: EdgeInsets.fromLTRB(
+                        24,
+                        index == 0 ? 0 : 8,
+                        24,
+                        index == eventsToday.length - 1 ? 24 : 8,
+                      ),
+                      child: _EventCard(
+                        event: event,
+                        onEdit: () => _editEvent(event),
+                        onDelete: () => _deleteEvent(event),
+                      ),
+                    );
+                  }, childCount: eventsToday.length),
                 );
               } else {
                 return const SliverFillRemaining(
@@ -412,9 +436,19 @@ class _CalendarPageState extends State<CalendarPage> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.event_note_outlined, size: 64, color: Colors.grey),
+                        Icon(
+                          Icons.event_note_outlined,
+                          size: 64,
+                          color: Colors.grey,
+                        ),
                         SizedBox(height: 16),
-                        Text('No events today', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500)),
+                        Text(
+                          'No events today',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
                         SizedBox(height: 8),
                         Text('Tap + to add an event'),
                       ],
@@ -430,27 +464,31 @@ class _CalendarPageState extends State<CalendarPage> {
 }
 
 // ==================== Event UI Widgets (Updated for Multi-Day) ====================
-
 class _EventCard extends StatelessWidget {
   final Holiday event;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
-
-  const _EventCard({required this.event, required this.onEdit, required this.onDelete});
-
+  const _EventCard({
+    required this.event,
+    required this.onEdit,
+    required this.onDelete,
+  });
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final color = Color(event.colorCode);
-
     return GestureDetector(
       onTap: () {
         showModalBottomSheet(
           context: context,
           isScrollControlled: true,
           backgroundColor: Colors.transparent,
-          builder: (context) => _EventDetailsSheet(event: event, onEdit: onEdit, onDelete: onDelete),
+          builder: (context) => _EventDetailsSheet(
+            event: event,
+            onEdit: onEdit,
+            onDelete: onDelete,
+          ),
         );
       },
       child: Container(
@@ -459,7 +497,11 @@ class _EventCard extends StatelessWidget {
           color: isDark ? Colors.grey[900] : Colors.white,
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 20, offset: const Offset(0, 4))
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 20,
+              offset: const Offset(0, 4),
+            ),
           ],
         ),
         child: Stack(
@@ -486,8 +528,15 @@ class _EventCard extends StatelessWidget {
                   Container(
                     width: 48,
                     height: 48,
-                    decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
-                    child: Icon(_getEventIcon(event.type), color: color, size: 24),
+                    decoration: BoxDecoration(
+                      color: color.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(
+                      _getEventIcon(event.type),
+                      color: color,
+                      size: 24,
+                    ),
                   ),
                   const SizedBox(width: 16),
                   Expanded(
@@ -496,18 +545,30 @@ class _EventCard extends StatelessWidget {
                       children: [
                         Text(
                           event.name,
-                          style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
+                          style: const TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w600,
+                          ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
                         const SizedBox(height: 6),
                         Row(
                           children: [
-                            Icon(Icons.access_time, size: 14, color: Colors.grey[500]),
+                            Icon(
+                              Icons.access_time,
+                              size: 14,
+                              color: Colors.grey[500],
+                            ),
                             const SizedBox(width: 4),
                             Text(
-                              event.time != null ? event.time!.format(context) : 'All day',
-                              style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                              event.time != null
+                                  ? event.time!.format(context)
+                                  : 'All day',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.grey[600],
+                              ),
                             ),
                           ],
                         ),
@@ -545,24 +606,25 @@ class _EventDetailsSheet extends StatelessWidget {
   final Holiday event;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
-
-  const _EventDetailsSheet({required this.event, required this.onEdit, required this.onDelete});
-
+  const _EventDetailsSheet({
+    required this.event,
+    required this.onEdit,
+    required this.onDelete,
+  });
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final color = Color(event.colorCode);
-
     String dateDisplay;
     if (event.endDate == null) {
       dateDisplay = DateFormat('EEEE, MMMM d, yyyy').format(event.startDate);
     } else if (event.startDate.stripTime() == event.endDate!.stripTime()) {
       dateDisplay = DateFormat('EEEE, MMMM d, yyyy').format(event.startDate);
     } else {
-      dateDisplay = '${DateFormat('MMM d').format(event.startDate)} – ${DateFormat('MMM d, yyyy').format(event.endDate!)}';
+      dateDisplay =
+          '${DateFormat('MMM d').format(event.startDate)} – ${DateFormat('MMM d, yyyy').format(event.endDate!)}';
     }
-
     return Container(
       margin: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -576,24 +638,42 @@ class _EventDetailsSheet extends StatelessWidget {
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
               color: color.withOpacity(0.1),
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(28),
+              ),
             ),
             child: Row(
               children: [
                 Container(
                   width: 56,
                   height: 56,
-                  decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(16)),
-                  child: Icon(_getEventIcon(event.type), color: Colors.white, size: 28),
+                  decoration: BoxDecoration(
+                    color: color,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Icon(
+                    _getEventIcon(event.type),
+                    color: Colors.white,
+                    size: 28,
+                  ),
                 ),
                 const SizedBox(width: 16),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(event.name, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                      Text(
+                        event.name,
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                       const SizedBox(height: 4),
-                      Text(event.type, style: TextStyle(fontSize: 14, color: Colors.grey[600])),
+                      Text(
+                        event.type,
+                        style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                      ),
                     ],
                   ),
                 ),
@@ -604,16 +684,26 @@ class _EventDetailsSheet extends StatelessWidget {
             padding: const EdgeInsets.all(24),
             child: Column(
               children: [
-                _DetailRow(icon: Icons.calendar_today, title: 'Date', value: dateDisplay),
+                _DetailRow(
+                  icon: Icons.calendar_today,
+                  title: 'Date',
+                  value: dateDisplay,
+                ),
                 const SizedBox(height: 16),
                 _DetailRow(
                   icon: Icons.access_time,
                   title: 'Time',
-                  value: event.time != null ? event.time!.format(context) : 'All day',
+                  value: event.time != null
+                      ? event.time!.format(context)
+                      : 'All day',
                 ),
                 if (event.description != null) ...[
                   const SizedBox(height: 16),
-                  _DetailRow(icon: Icons.description, title: 'Description', value: event.description!),
+                  _DetailRow(
+                    icon: Icons.description,
+                    title: 'Description',
+                    value: event.description!,
+                  ),
                 ],
               ],
             ),
@@ -631,7 +721,9 @@ class _EventDetailsSheet extends StatelessWidget {
                     style: OutlinedButton.styleFrom(
                       foregroundColor: Colors.red,
                       padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
                     ),
                     child: const Text('Delete'),
                   ),
@@ -647,7 +739,9 @@ class _EventDetailsSheet extends StatelessWidget {
                       backgroundColor: color,
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
                     ),
                     child: const Text('Edit'),
                   ),
@@ -681,9 +775,11 @@ class _DetailRow extends StatelessWidget {
   final IconData icon;
   final String title;
   final String value;
-
-  const _DetailRow({required this.icon, required this.title, required this.value});
-
+  const _DetailRow({
+    required this.icon,
+    required this.title,
+    required this.value,
+  });
   @override
   Widget build(BuildContext context) {
     return Row(
@@ -695,9 +791,22 @@ class _DetailRow extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(title, style: TextStyle(fontSize: 14, color: Colors.grey[600], fontWeight: FontWeight.w500)),
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey[600],
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
               const SizedBox(height: 4),
-              Text(value, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
+              Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,  
+                ),
+              ),
             ],
           ),
         ),
