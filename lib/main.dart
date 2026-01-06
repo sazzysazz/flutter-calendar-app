@@ -2,9 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'models/holiday.dart';
 import 'services/event_database.dart';  // ← Import your EventDatabase
-// import 'screens/calendar_page.dart';   // or 'pages/calendar_page.dart'
 import 'screens/splash_screen.dart';
-import 'screens/calendar_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();

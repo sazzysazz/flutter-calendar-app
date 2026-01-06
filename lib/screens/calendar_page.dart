@@ -1,10 +1,10 @@
+import 'package:calendar_app/add_event_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:intl/intl.dart';
 import '../models/holiday.dart';
 import '../services/holiday_service.dart';
 import '../services/event_database.dart';
-import '../widgets/add_event_dialog.dart';
 
 // No need to redefine the extension here — it's already in holiday.dart
 // extension DateTimeExtension on DateTime { ... } ← REMOVED

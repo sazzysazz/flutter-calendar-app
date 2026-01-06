@@ -27,10 +27,22 @@ class _AddEventDialogState extends State<AddEventDialog> {
   late DateTime? _endDate;
 
   final List<int> _colorPalette = [
-    0xFFEF5350, 0xFFEC407A, 0xFFAB47BC, 0xFF7E57C2,
-    0xFF5C6BC0, 0xFF42A5F5, 0xFF29B6F6, 0xFF26C6DA,
-    0xFF26A69A, 0xFF66BB6A, 0xFF9CCC65, 0xFFD4E157,
-    0xFFFFEE58, 0xFFFFCA28, 0xFFFF7043, 0xFF8D6E63,
+    0xFFEF5350,
+    0xFFEC407A,
+    0xFFAB47BC,
+    0xFF7E57C2,
+    0xFF5C6BC0,
+    0xFF42A5F5,
+    0xFF29B6F6,
+    0xFF26C6DA,
+    0xFF26A69A,
+    0xFF66BB6A,
+    0xFF9CCC65,
+    0xFFD4E157,
+    0xFFFFEE58,
+    0xFFFFCA28,
+    0xFFFF7043,
+    0xFF8D6E63,
   ];
 
   @override
@@ -86,8 +98,13 @@ class _AddEventDialogState extends State<AddEventDialog> {
                 // Start Date
                 ListTile(
                   leading: const Icon(Icons.calendar_today),
-                  title: const Text('Start Date', style: TextStyle(fontWeight: FontWeight.w600)),
-                  subtitle: Text(DateFormat('EEEE, MMMM d, yyyy').format(_startDate)),
+                  title: const Text(
+                    'Start Date',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  subtitle: Text(
+                    DateFormat('EEEE, MMMM d, yyyy').format(_startDate),
+                  ),
                   onTap: () async {
                     final picked = await showDatePicker(
                       context: context,
@@ -124,8 +141,13 @@ class _AddEventDialogState extends State<AddEventDialog> {
                   const SizedBox(height: 8),
                   ListTile(
                     leading: const Icon(Icons.calendar_today_outlined),
-                    title: const Text('End Date', style: TextStyle(fontWeight: FontWeight.w600)),
-                    subtitle: Text(DateFormat('EEEE, MMMM d, yyyy').format(_endDate!)),
+                    title: const Text(
+                      'End Date',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    subtitle: Text(
+                      DateFormat('EEEE, MMMM d, yyyy').format(_endDate!),
+                    ),
                     onTap: () async {
                       final picked = await showDatePicker(
                         context: context,
@@ -150,8 +172,9 @@ class _AddEventDialogState extends State<AddEventDialog> {
                     prefixIcon: Icon(Icons.event),
                     border: OutlineInputBorder(),
                   ),
-                  validator: (value) =>
-                      value?.trim().isEmpty ?? true ? 'Event name is required' : null,
+                  validator: (value) => value?.trim().isEmpty ?? true
+                      ? 'Event name is required'
+                      : null,
                 ),
                 const SizedBox(height: 16),
 
@@ -191,11 +214,15 @@ class _AddEventDialogState extends State<AddEventDialog> {
                       const SizedBox(width: 12),
                       Expanded(
                         child: _pickedTime == null
-                            ? const Text('No time set', style: TextStyle(color: Colors.grey))
+                            ? const Text(
+                                'No time set',
+                                style: TextStyle(color: Colors.grey),
+                              )
                             : Chip(
                                 label: Text(_pickedTime!.format(context)),
                                 deleteIcon: const Icon(Icons.clear, size: 18),
-                                onDeleted: () => setState(() => _pickedTime = null),
+                                onDeleted: () =>
+                                    setState(() => _pickedTime = null),
                               ),
                       ),
                       TextButton.icon(
@@ -218,7 +245,10 @@ class _AddEventDialogState extends State<AddEventDialog> {
                 const SizedBox(height: 24),
 
                 // Color picker
-                const Text('Event Color', style: TextStyle(fontWeight: FontWeight.w600)),
+                const Text(
+                  'Event Color',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
                 const SizedBox(height: 12),
                 Wrap(
                   spacing: 14,
@@ -240,10 +270,22 @@ class _AddEventDialogState extends State<AddEventDialog> {
                             width: isSelected ? 4 : 0,
                           ),
                           boxShadow: isSelected
-                              ? [BoxShadow(color: Colors.black26, blurRadius: 10, offset: const Offset(0, 4))]
+                              ? [
+                                  BoxShadow(
+                                    color: Colors.black26,
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ]
                               : null,
                         ),
-                        child: isSelected ? const Icon(Icons.check, color: Colors.white, size: 28) : null,
+                        child: isSelected
+                            ? const Icon(
+                                Icons.check,
+                                color: Colors.white,
+                                size: 28,
+                              )
+                            : null,
                       ),
                     );
                   }).toList(),
@@ -256,7 +298,10 @@ class _AddEventDialogState extends State<AddEventDialog> {
       actionsPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       actionsAlignment: MainAxisAlignment.spaceBetween,
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
         ElevatedButton.icon(
           onPressed: _canSave
               ? () {
@@ -266,7 +311,9 @@ class _AddEventDialogState extends State<AddEventDialog> {
                       startDate: _startDate,
                       endDate: _endDate,
                       type: widget.existingEvent?.type ?? 'Custom',
-                      description: _descController.text.trim().isEmpty ? null : _descController.text.trim(),
+                      description: _descController.text.trim().isEmpty
+                          ? null
+                          : _descController.text.trim(),
                       // Only pass time if NOT all-day and time is picked
                       time: _isAllDay ? null : _pickedTime,
                       colorCode: _selectedColor,
@@ -281,7 +328,9 @@ class _AddEventDialogState extends State<AddEventDialog> {
             backgroundColor: _canSave ? Color(_selectedColor) : null,
             foregroundColor: _canSave ? Colors.white : null,
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
             elevation: 6,
           ),
         ),
