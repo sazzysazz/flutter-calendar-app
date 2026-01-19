@@ -2,12 +2,12 @@ import 'package:calendar_app/add_event_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:intl/intl.dart';
+
 import '../models/holiday.dart';
 import '../services/holiday_service.dart';
 import '../services/event_database.dart';
+import '../services/notification_service.dart';
 
-// No need to redefine the extension here — it's already in holiday.dart
-// extension DateTimeExtension on DateTime { ... } ← REMOVED
 class CalendarPage extends StatefulWidget {
   const CalendarPage({super.key});
   @override
@@ -17,19 +17,22 @@ class CalendarPage extends StatefulWidget {
 class _CalendarPageState extends State<CalendarPage> {
   DateTime _focusedDay = DateTime.now();
   DateTime _selectedDay = DateTime.now();
+
+  List<Holiday> _publicHolidays = [];
   List<Holiday> _allEvents = [];
   List<Holiday> _searchResults = [];
+
   final TextEditingController _searchController = TextEditingController();
+  bool _loading = true;
+
   @override
   void initState() {
     super.initState();
     _searchController.addListener(_onSearchListener);
-    loadHolidays();
+    loadHolidays(refreshPublic: true);
   }
 
-  void _onSearchListener() {
-    _onSearchChanged(_searchController.text);
-  }
+  void _onSearchListener() => _onSearchChanged(_searchController.text);
 
   @override
   void dispose() {
@@ -38,47 +41,98 @@ class _CalendarPageState extends State<CalendarPage> {
     super.dispose();
   }
 
-  Future<void> loadHolidays() async {
-    final publicHolidays = await HolidayService.fetchHolidays();
-    final customEvents = EventDatabase.getAllEvents();
-    final allEvents = <Holiday>[...publicHolidays, ...customEvents];
-    if (mounted) {
-      setState(() {
-        _allEvents = allEvents;
-      });
-      _onSearchChanged(_searchController.text);
+  ReminderOption _mapReminder(int v) {
+    switch (v) {
+      case 1:
+        return ReminderOption.tenMinutes;
+      case 2:
+        return ReminderOption.oneHour;
+      case 3:
+        return ReminderOption.oneDay;
+      default:
+        return ReminderOption.none;
     }
   }
 
-  // Returns all events that cover the given day (supports multi-day events)
+  Future<void> loadHolidays({bool refreshPublic = false}) async {
+    try {
+      if (refreshPublic || _publicHolidays.isEmpty) {
+        _publicHolidays = await HolidayService.fetchHolidays();
+      }
+    } catch (_) {
+      // API fail -> still load Hive events
+    }
+
+    // IMPORTANT: ensure this reads fresh from Hive
+    final customEvents = EventDatabase.getAllEvents();
+    final allEvents = <Holiday>[..._publicHolidays, ...customEvents];
+
+    if (!mounted) return;
+    setState(() {
+      _allEvents = allEvents;
+      _loading = false;
+    });
+
+    _onSearchChanged(_searchController.text);
+  }
+
   List<Holiday> getEventsForDay(DateTime day) {
-    final d = day.stripTime(); // Uses extension from holiday.dart
+    final d = day.stripTime();
     return _allEvents.where((event) => event.coversDay(d)).toList();
   }
 
+  Future<void> _scheduleReminderForEvent(Holiday e) async {
+    final notifId = await NotificationService.instance.scheduleEventReminder(
+      title: e.name,
+      body: e.description,
+      startDate: e.startDate,
+      endDate: e.endDate,
+      hour: e.hour,
+      minute: e.minute,
+      reminder: _mapReminder(e.safeReminderOption),
+      existingNotificationId: e.notificationId,
+      allDayHour: 8,
+      allDayMinute: 0,
+    );
+
+    e.notificationId = notifId;
+    await e.save();
+  }
+
+  // ✅ FIXED: Refresh calendar FIRST, then schedule notification (try/catch)
   void _addEvent() async {
     final newEvent = await showDialog<Holiday>(
       context: context,
       builder: (_) => AddEventDialog(selectedDay: _selectedDay),
     );
-    if (newEvent != null) {
-      await EventDatabase.saveEvent(newEvent);
-      await loadHolidays();
+
+    if (newEvent == null) return;
+
+    // 1) Save event first
+    await EventDatabase.saveEvent(newEvent);
+
+    // 2) Update UI immediately (so calendar refresh works even if notification fails)
+    if (!mounted) return;
+    setState(() {
+      _selectedDay = newEvent.startDate.stripTime();
+      _focusedDay = _selectedDay;
+    });
+
+    // 3) Reload events for TableCalendar markers + list
+    await loadHolidays(refreshPublic: false);
+
+    // 4) Try schedule reminder (do NOT block UI if it fails)
+    try {
+      await _scheduleReminderForEvent(newEvent);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Reminder failed: $e')),
+      );
     }
   }
 
-  void _onSearchChanged(String query) {
-    setState(() {
-      if (query.trim().isEmpty) {
-        _searchResults = [];
-      } else {
-        _searchResults = _allEvents
-            .where((e) => e.name.toLowerCase().contains(query.toLowerCase()))
-            .toList();
-      }
-    });
-  }
-
+  // ✅ FIXED: Same approach for edit
   void _editEvent(Holiday oldEvent) async {
     final updatedEvent = await showDialog<Holiday>(
       context: context,
@@ -87,17 +141,39 @@ class _CalendarPageState extends State<CalendarPage> {
         existingEvent: oldEvent,
       ),
     );
-    if (updatedEvent != null) {
-      oldEvent.updateEvent(
-        name: updatedEvent.name,
-        description: updatedEvent.description,
-        time: updatedEvent.time,
-        colorCode: updatedEvent.colorCode,
-        startDate: updatedEvent.startDate,
-        endDate: updatedEvent.endDate,
+
+    if (updatedEvent == null) return;
+
+    final oldNotifId = oldEvent.notificationId;
+
+    oldEvent.updateEvent(
+      name: updatedEvent.name,
+      description: updatedEvent.description,
+      time: updatedEvent.time,
+      colorCode: updatedEvent.safeColorCode,
+      startDate: updatedEvent.startDate,
+      endDate: updatedEvent.endDate,
+      reminderOption: updatedEvent.safeReminderOption,
+    );
+
+    oldEvent.notificationId = oldNotifId;
+    await oldEvent.save();
+
+    if (!mounted) return;
+    setState(() {
+      _selectedDay = oldEvent.startDate.stripTime();
+      _focusedDay = _selectedDay;
+    });
+
+    await loadHolidays(refreshPublic: false);
+
+    try {
+      await _scheduleReminderForEvent(oldEvent);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Reminder update failed: $e')),
       );
-      await oldEvent.save();
-      await loadHolidays();
     }
   }
 
@@ -117,8 +193,14 @@ class _CalendarPageState extends State<CalendarPage> {
           TextButton(
             onPressed: () async {
               Navigator.pop(context);
+
+              if (event.notificationId != null) {
+                await NotificationService.instance.cancel(event.notificationId!);
+              }
+
               await EventDatabase.deleteEvent(event);
-              await loadHolidays();
+              await loadHolidays(refreshPublic: false);
+
               if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
@@ -135,6 +217,18 @@ class _CalendarPageState extends State<CalendarPage> {
     );
   }
 
+  void _onSearchChanged(String query) {
+    setState(() {
+      if (query.trim().isEmpty) {
+        _searchResults = [];
+      } else {
+        _searchResults = _allEvents
+            .where((e) => e.name.toLowerCase().contains(query.toLowerCase()))
+            .toList();
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -142,6 +236,14 @@ class _CalendarPageState extends State<CalendarPage> {
     final primaryColor = theme.colorScheme.primary;
     final surfaceColor = isDark ? Colors.grey[900]! : Colors.white;
     final scaffoldColor = isDark ? Colors.black : Colors.grey[50];
+
+    if (_loading) {
+      return Scaffold(
+        backgroundColor: scaffoldColor,
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
     return Scaffold(
       backgroundColor: scaffoldColor,
       floatingActionButton: FloatingActionButton(
@@ -210,6 +312,7 @@ class _CalendarPageState extends State<CalendarPage> {
               ),
             ),
           ),
+
           // Search Results Panel
           if (_searchResults.isNotEmpty)
             SliverToBoxAdapter(
@@ -279,6 +382,7 @@ class _CalendarPageState extends State<CalendarPage> {
                 ),
               ),
             ),
+
           // Calendar
           SliverToBoxAdapter(
             child: Padding(
@@ -299,6 +403,8 @@ class _CalendarPageState extends State<CalendarPage> {
                   ],
                 ),
                 child: TableCalendar(
+                  // ✅ FIX: force rebuild when events list changes
+                  key: ValueKey(_allEvents.length),
                   firstDay: DateTime.utc(2020, 1, 1),
                   lastDay: DateTime.utc(2030, 12, 31),
                   focusedDay: _focusedDay,
@@ -346,11 +452,9 @@ class _CalendarPageState extends State<CalendarPage> {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: events.take(4).map((e) {
                             final Holiday holiday = e as Holiday;
-                            final color = Color(holiday.colorCode);
+                            final color = Color(holiday.safeColorCode);
                             return Container(
-                              margin: const EdgeInsets.symmetric(
-                                horizontal: 1.5,
-                              ),
+                              margin: const EdgeInsets.symmetric(horizontal: 1.5),
                               width: 8,
                               height: 8,
                               decoration: BoxDecoration(
@@ -373,7 +477,8 @@ class _CalendarPageState extends State<CalendarPage> {
               ),
             ),
           ),
-          // Selected day header (only when not searching)
+
+          // Selected day header
           if (_searchResults.isEmpty)
             SliverToBoxAdapter(
               child: Padding(
@@ -406,7 +511,8 @@ class _CalendarPageState extends State<CalendarPage> {
                 ),
               ),
             ),
-          // Events list or empty state (only when not searching)
+
+          // Events list or empty
           if (_searchResults.isEmpty)
             () {
               final eventsToday = getEventsForDay(_selectedDay);
@@ -463,7 +569,8 @@ class _CalendarPageState extends State<CalendarPage> {
   }
 }
 
-// ==================== Event UI Widgets (Updated for Multi-Day) ====================
+// ==================== Event UI Widgets ====================
+
 class _EventCard extends StatelessWidget {
   final Holiday event;
   final VoidCallback onEdit;
@@ -473,11 +580,13 @@ class _EventCard extends StatelessWidget {
     required this.onEdit,
     required this.onDelete,
   });
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final color = Color(event.colorCode);
+    final color = Color(event.safeColorCode);
+
     return GestureDetector(
       onTap: () {
         showModalBottomSheet(
@@ -611,11 +720,12 @@ class _EventDetailsSheet extends StatelessWidget {
     required this.onEdit,
     required this.onDelete,
   });
+
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final color = Color(event.colorCode);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final color = Color(event.safeColorCode);
+
     String dateDisplay;
     if (event.endDate == null) {
       dateDisplay = DateFormat('EEEE, MMMM d, yyyy').format(event.startDate);
@@ -625,6 +735,7 @@ class _EventDetailsSheet extends StatelessWidget {
       dateDisplay =
           '${DateFormat('MMM d').format(event.startDate)} – ${DateFormat('MMM d, yyyy').format(event.endDate!)}';
     }
+
     return Container(
       margin: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -693,9 +804,7 @@ class _EventDetailsSheet extends StatelessWidget {
                 _DetailRow(
                   icon: Icons.access_time,
                   title: 'Time',
-                  value: event.time != null
-                      ? event.time!.format(context)
-                      : 'All day',
+                  value: event.time != null ? event.time!.format(context) : 'All day',
                 ),
                 if (event.description != null) ...[
                   const SizedBox(height: 16),
@@ -780,6 +889,7 @@ class _DetailRow extends StatelessWidget {
     required this.title,
     required this.value,
   });
+
   @override
   Widget build(BuildContext context) {
     return Row(
@@ -804,7 +914,7 @@ class _DetailRow extends StatelessWidget {
                 value,
                 style: const TextStyle(
                   fontSize: 16,
-                  fontWeight: FontWeight.w500,  
+                  fontWeight: FontWeight.w500,
                 ),
               ),
             ],

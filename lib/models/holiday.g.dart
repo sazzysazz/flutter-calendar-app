@@ -22,7 +22,9 @@ class HolidayAdapter extends TypeAdapter<Holiday> {
       endDate: fields[7] as DateTime?,
       type: fields[2] as String,
       description: fields[3] as String?,
-      colorCode: fields[4] as int,
+      colorCode: fields[4] as int?,
+      reminderOption: fields[8] as int?,
+      notificationId: fields[9] as int?,
     )
       ..hour = fields[5] as int?
       ..minute = fields[6] as int?;
@@ -31,7 +33,7 @@ class HolidayAdapter extends TypeAdapter<Holiday> {
   @override
   void write(BinaryWriter writer, Holiday obj) {
     writer
-      ..writeByte(8)
+      ..writeByte(10)
       ..writeByte(0)
       ..write(obj.name)
       ..writeByte(1)
@@ -47,7 +49,11 @@ class HolidayAdapter extends TypeAdapter<Holiday> {
       ..writeByte(5)
       ..write(obj.hour)
       ..writeByte(6)
-      ..write(obj.minute);
+      ..write(obj.minute)
+      ..writeByte(8)
+      ..write(obj.reminderOption)
+      ..writeByte(9)
+      ..write(obj.notificationId);
   }
 
   @override

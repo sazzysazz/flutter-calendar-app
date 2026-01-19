@@ -18,7 +18,7 @@ class Holiday extends HiveObject {
   DateTime startDate;
 
   /// End of the event – null = single-day event
-  @HiveField(7) // Use a higher index to avoid conflicting with existing data
+  @HiveField(7)
   DateTime? endDate;
 
   @HiveField(2)
@@ -27,8 +27,9 @@ class Holiday extends HiveObject {
   @HiveField(3)
   String? description;
 
+  // ✅ make nullable for old data safety
   @HiveField(4)
-  int colorCode;
+  int? colorCode;
 
   @HiveField(5)
   int? hour;
@@ -36,22 +37,40 @@ class Holiday extends HiveObject {
   @HiveField(6)
   int? minute;
 
+  // ✅ NEW fields (use new unique indexes)
+  @HiveField(8)
+  int? reminderOption; // 0 none, 1 10min, 2 1hour, 3 1day
+
+  @HiveField(9)
+  int? notificationId; // local notification id
+
   Holiday({
     required this.name,
     required this.startDate,
     this.endDate,
     required this.type,
     this.description,
-    this.colorCode = 0xFF2196F3,
+    int? colorCode,
     TimeOfDay? time,
-  })  : hour = time?.hour,
-        minute = time?.minute;
+    int? reminderOption,
+    int? notificationId,
+  }) : colorCode = colorCode ?? 0xFF2196F3,
+       hour = time?.hour,
+       minute = time?.minute,
+       reminderOption = reminderOption ?? 0,
+       notificationId = notificationId;
 
   /// Stripped start date (for mapping / comparison)
   DateTime get startDay => startDate.stripTime();
 
   /// Stripped end date – falls back to startDate if null
   DateTime get endDay => (endDate ?? startDate).stripTime();
+
+  /// ✅ Always return a valid color (even if saved value was null)
+  int get safeColorCode => colorCode ?? 0xFF2196F3;
+
+  /// ✅ Always return a valid reminder option
+  int get safeReminderOption => reminderOption ?? 0;
 
   /// Does this event cover the given day?
   bool coversDay(DateTime day) {
@@ -60,10 +79,9 @@ class Holiday extends HiveObject {
   }
 
   /// Time of day (if set)
-  TimeOfDay? get time =>
-      (hour != null && minute != null)
-          ? TimeOfDay(hour: hour!, minute: minute!)
-          : null;
+  TimeOfDay? get time => (hour != null && minute != null)
+      ? TimeOfDay(hour: hour!, minute: minute!)
+      : null;
 
   /// Update an existing event (used in edit dialog)
   void updateEvent({
@@ -73,26 +91,31 @@ class Holiday extends HiveObject {
     required int colorCode,
     required DateTime startDate,
     DateTime? endDate,
+    int? reminderOption,
   }) {
     this.name = name;
     this.description = description;
-    this.hour = time?.hour;
-    this.minute = time?.minute;
+    hour = time?.hour;
+    minute = time?.minute;
     this.colorCode = colorCode;
     this.startDate = startDate;
     this.endDate = endDate;
+    if (reminderOption != null) this.reminderOption = reminderOption;
   }
 
   /// Parse from public holiday API JSON
   factory Holiday.fromJson(Map<String, dynamic> json) {
     final date = DateTime.parse(json['date']);
+    final type = (json['type'] ?? 'Public') as String;
+
     return Holiday(
       name: json['name'],
       startDate: date,
-      endDate: null, // Public holidays are always single-day
-      type: json['type'] ?? 'Public',
+      endDate: null,
+      type: type,
       description: json['description'],
-      colorCode: _getColorForType(json['type'] ?? 'Public'),
+      colorCode: _getColorForType(type),
+      reminderOption: 0,
     );
   }
 

@@ -20,11 +20,15 @@ class _AddEventDialogState extends State<AddEventDialog> {
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _nameController;
   late TextEditingController _descController;
+
   TimeOfDay? _pickedTime;
   bool _isAllDay = false;
   late int _selectedColor;
   late DateTime _startDate;
   late DateTime? _endDate;
+
+  // ✅ NEW: reminder option
+  late int _reminderOption; // 0 none, 1 tenMin, 2 oneHour, 3 oneDay
 
   final List<int> _colorPalette = [
     0xFFEF5350,
@@ -60,6 +64,9 @@ class _AddEventDialogState extends State<AddEventDialog> {
 
     _startDate = existing?.startDate ?? widget.selectedDay;
     _endDate = existing?.endDate;
+
+    // ✅ NEW: load reminder when editing
+    _reminderOption = existing?.reminderOption ?? 0;
 
     _nameController.addListener(() => setState(() {}));
   }
@@ -242,6 +249,25 @@ class _AddEventDialogState extends State<AddEventDialog> {
                   ),
                 ],
 
+                const SizedBox(height: 16),
+
+                // ✅ NEW: Reminder dropdown (uses 8:00 AM for all-day reminders)
+                DropdownButtonFormField<int>(
+                  value: _reminderOption,
+                  decoration: const InputDecoration(
+                    labelText: 'Reminder',
+                    prefixIcon: Icon(Icons.notifications),
+                    border: OutlineInputBorder(),
+                  ),
+                  items: const [
+                    DropdownMenuItem(value: 0, child: Text('None')),
+                    DropdownMenuItem(value: 1, child: Text('10 minutes before')),
+                    DropdownMenuItem(value: 2, child: Text('1 hour before')),
+                    DropdownMenuItem(value: 3, child: Text('1 day before')),
+                  ],
+                  onChanged: (v) => setState(() => _reminderOption = v ?? 0),
+                ),
+
                 const SizedBox(height: 24),
 
                 // Color picker
@@ -314,10 +340,16 @@ class _AddEventDialogState extends State<AddEventDialog> {
                       description: _descController.text.trim().isEmpty
                           ? null
                           : _descController.text.trim(),
-                      // Only pass time if NOT all-day and time is picked
                       time: _isAllDay ? null : _pickedTime,
                       colorCode: _selectedColor,
+
+                      // ✅ NEW
+                      reminderOption: _reminderOption,
+
+                      // ✅ keep existing notification id (for edit reschedule)
+                      notificationId: widget.existingEvent?.notificationId,
                     );
+
                     Navigator.pop(context, event);
                   }
                 }
