@@ -26,7 +26,7 @@ android {
         applicationId = "com.example.calendar_app"
 
         // ✅ MUST be 21+ for notifications
-        minSdk = 21
+        minSdk = flutter.minSdkVersion
 
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode

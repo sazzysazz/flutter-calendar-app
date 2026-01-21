@@ -63,7 +63,6 @@ class _CalendarPageState extends State<CalendarPage> {
       // API fail -> still load Hive events
     }
 
-    // IMPORTANT: ensure this reads fresh from Hive
     final customEvents = EventDatabase.getAllEvents();
     final allEvents = <Holiday>[..._publicHolidays, ...customEvents];
 
@@ -99,7 +98,6 @@ class _CalendarPageState extends State<CalendarPage> {
     await e.save();
   }
 
-  // ✅ FIXED: Refresh calendar FIRST, then schedule notification (try/catch)
   void _addEvent() async {
     final newEvent = await showDialog<Holiday>(
       context: context,
@@ -108,20 +106,16 @@ class _CalendarPageState extends State<CalendarPage> {
 
     if (newEvent == null) return;
 
-    // 1) Save event first
     await EventDatabase.saveEvent(newEvent);
 
-    // 2) Update UI immediately (so calendar refresh works even if notification fails)
     if (!mounted) return;
     setState(() {
       _selectedDay = newEvent.startDate.stripTime();
       _focusedDay = _selectedDay;
     });
 
-    // 3) Reload events for TableCalendar markers + list
     await loadHolidays(refreshPublic: false);
 
-    // 4) Try schedule reminder (do NOT block UI if it fails)
     try {
       await _scheduleReminderForEvent(newEvent);
     } catch (e) {
@@ -132,7 +126,6 @@ class _CalendarPageState extends State<CalendarPage> {
     }
   }
 
-  // ✅ FIXED: Same approach for edit
   void _editEvent(Holiday oldEvent) async {
     final updatedEvent = await showDialog<Holiday>(
       context: context,
@@ -219,14 +212,82 @@ class _CalendarPageState extends State<CalendarPage> {
 
   void _onSearchChanged(String query) {
     setState(() {
-      if (query.trim().isEmpty) {
+      final q = query.trim().toLowerCase();
+      if (q.isEmpty) {
         _searchResults = [];
       } else {
-        _searchResults = _allEvents
-            .where((e) => e.name.toLowerCase().contains(query.toLowerCase()))
-            .toList();
+        _searchResults =
+            _allEvents.where((e) => e.name.toLowerCase().contains(q)).toList();
       }
     });
+  }
+
+  void _closeSearch() {
+    _searchController.clear();
+    _onSearchChanged('');
+    FocusScope.of(context).unfocus();
+  }
+
+  // ✅ FULL-SCREEN Search Results overlay
+  Widget _searchOverlay({
+    required Color surfaceColor,
+    required Color primaryColor,
+    required Color scaffoldColor,
+  }) {
+    return Material(
+      color: scaffoldColor, // full background
+      child: Column(
+        children: [
+          // Top bar
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  '${_searchResults.length} result${_searchResults.length == 1 ? '' : 's'}',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: primaryColor,
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: _closeSearch,
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+
+          Expanded(
+            child: _searchResults.isEmpty
+                ? const Center(
+                    child: Text(
+                      'No results',
+                      style: TextStyle(fontSize: 16),
+                    ),
+                  )
+                : ListView.builder(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                    itemCount: _searchResults.length,
+                    itemBuilder: (context, index) {
+                      final event = _searchResults[index];
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        child: _EventCard(
+                          event: event,
+                          onEdit: () => _editEvent(event),
+                          onDelete: () => _deleteEvent(event),
+                        ),
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -235,7 +296,7 @@ class _CalendarPageState extends State<CalendarPage> {
     final isDark = theme.brightness == Brightness.dark;
     final primaryColor = theme.colorScheme.primary;
     final surfaceColor = isDark ? Colors.grey[900]! : Colors.white;
-    final scaffoldColor = isDark ? Colors.black : Colors.grey[50];
+    final scaffoldColor = isDark ? Colors.black : Colors.grey[50]!;
 
     if (_loading) {
       return Scaffold(
@@ -243,6 +304,11 @@ class _CalendarPageState extends State<CalendarPage> {
         body: const Center(child: CircularProgressIndicator()),
       );
     }
+
+    final eventsToday = getEventsForDay(_selectedDay);
+
+    // ✅ show panel when typing (full screen), not only when results exist
+    final showSearchPanel = _searchController.text.trim().isNotEmpty;
 
     return Scaffold(
       backgroundColor: scaffoldColor,
@@ -254,76 +320,33 @@ class _CalendarPageState extends State<CalendarPage> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         child: const Icon(Icons.add, size: 28),
       ),
-      body: CustomScrollView(
-        slivers: [
-          SliverAppBar(
-            floating: true,
-            snap: true,
-            elevation: 0,
-            backgroundColor: Colors.transparent,
-            title: Text(
-              'Calendar',
-              style: theme.textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.bold,
-                fontSize: 28,
-              ),
-            ),
-            bottom: PreferredSize(
-              preferredSize: const Size.fromHeight(80),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                child: Container(
-                  height: 56,
-                  decoration: BoxDecoration(
-                    color: surfaceColor,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.05),
-                        blurRadius: 20,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: TextField(
-                    controller: _searchController,
-                    decoration: InputDecoration(
-                      hintText: 'Search events...',
-                      hintStyle: TextStyle(color: Colors.grey[600]),
-                      prefixIcon: Icon(Icons.search, color: Colors.grey[500]),
-                      suffixIcon: _searchController.text.isNotEmpty
-                          ? IconButton(
-                              icon: Icon(Icons.clear, color: Colors.grey[500]),
-                              onPressed: () {
-                                _searchController.clear();
-                                _onSearchChanged('');
-                              },
-                            )
-                          : null,
-                      border: InputBorder.none,
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 14,
-                      ),
+      body: SafeArea(
+        child: Column(
+          children: [
+            // ---------- Title ----------
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+              child: Row(
+                children: [
+                  Text(
+                    'Calendar',
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 28,
                     ),
-                    onChanged: _onSearchChanged,
                   ),
-                ),
+                ],
               ),
             ),
-          ),
 
-          // Search Results Panel
-          if (_searchResults.isNotEmpty)
-            SliverToBoxAdapter(
+            // ---------- Search Bar (Fixed) ----------
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
               child: Container(
-                constraints: BoxConstraints(
-                  maxHeight: MediaQuery.of(context).size.height * 0.5,
-                ),
-                margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                height: 56,
                 decoration: BoxDecoration(
                   color: surfaceColor,
-                  borderRadius: BorderRadius.circular(24),
+                  borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withOpacity(0.05),
@@ -332,238 +355,228 @@ class _CalendarPageState extends State<CalendarPage> {
                     ),
                   ],
                 ),
-                child: Column(
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            '${_searchResults.length} result${_searchResults.length == 1 ? '' : 's'}',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                              color: primaryColor,
-                            ),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.close),
-                            onPressed: () {
-                              _searchController.clear();
-                              _onSearchChanged('');
-                            },
-                          ),
-                        ],
-                      ),
+                child: TextField(
+                  controller: _searchController,
+                  decoration: InputDecoration(
+                    hintText: 'Search events...',
+                    hintStyle: TextStyle(color: Colors.grey[600]),
+                    prefixIcon: Icon(Icons.search, color: Colors.grey[500]),
+                    suffixIcon: _searchController.text.isNotEmpty
+                        ? IconButton(
+                            icon: Icon(Icons.clear, color: Colors.grey[500]),
+                            onPressed: _closeSearch,
+                          )
+                        : null,
+                    border: InputBorder.none,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 14,
                     ),
-                    const Divider(height: 1),
-                    Expanded(
-                      child: ListView.builder(
-                        padding: const EdgeInsets.only(bottom: 16),
-                        itemCount: _searchResults.length,
-                        itemBuilder: (context, index) {
-                          final event = _searchResults[index];
-                          return Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 4,
-                            ),
-                            child: _EventCard(
-                              event: event,
-                              onEdit: () => _editEvent(event),
-                              onDelete: () => _deleteEvent(event),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  ],
+                  ),
+                  onChanged: _onSearchChanged,
                 ),
               ),
             ),
 
-          // Calendar
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: _searchResults.isNotEmpty ? 0 : 8,
-              ),
-              child: Container(
-                decoration: BoxDecoration(
-                  color: surfaceColor,
-                  borderRadius: BorderRadius.circular(24),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
-                      blurRadius: 30,
-                      offset: const Offset(0, 10),
-                    ),
-                  ],
-                ),
-                child: TableCalendar(
-                  // ✅ FIX: force rebuild when events list changes
-                  key: ValueKey(_allEvents.length),
-                  firstDay: DateTime.utc(2020, 1, 1),
-                  lastDay: DateTime.utc(2030, 12, 31),
-                  focusedDay: _focusedDay,
-                  selectedDayPredicate: (day) => isSameDay(day, _selectedDay),
-                  onDaySelected: (selected, focused) {
-                    setState(() {
-                      _selectedDay = selected;
-                      _focusedDay = focused;
-                    });
-                  },
-                  eventLoader: getEventsForDay,
-                  headerStyle: const HeaderStyle(
-                    formatButtonVisible: false,
-                    titleCentered: true,
-                    titleTextStyle: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  calendarStyle: CalendarStyle(
-                    outsideDaysVisible: false,
-                    todayDecoration: BoxDecoration(
-                      color: primaryColor.withOpacity(0.1),
-                      shape: BoxShape.circle,
-                    ),
-                    selectedDecoration: BoxDecoration(
-                      color: primaryColor,
-                      shape: BoxShape.circle,
-                    ),
-                    todayTextStyle: TextStyle(
-                      color: primaryColor,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    selectedTextStyle: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  calendarBuilders: CalendarBuilders(
-                    markerBuilder: (context, date, events) {
-                      if (events.isEmpty) return null;
-                      return Positioned(
-                        bottom: 6,
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: events.take(4).map((e) {
-                            final Holiday holiday = e as Holiday;
-                            final color = Color(holiday.safeColorCode);
-                            return Container(
-                              margin: const EdgeInsets.symmetric(horizontal: 1.5),
-                              width: 8,
-                              height: 8,
-                              decoration: BoxDecoration(
-                                color: color,
-                                shape: BoxShape.circle,
-                                border: holiday.endDate != null
-                                    ? Border.all(
-                                        color: Colors.white,
-                                        width: 1.5,
-                                      )
-                                    : null,
+            // ✅ Area under search bar
+            Expanded(
+              child: Stack(
+                children: [
+                  // ----- Main content under overlay -----
+                  Column(
+                    children: [
+                      // ---------- Calendar ----------
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 6),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: surfaceColor,
+                            borderRadius: BorderRadius.circular(24),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.05),
+                                blurRadius: 30,
+                                offset: const Offset(0, 10),
                               ),
-                            );
-                          }).toList(),
+                            ],
+                          ),
+                          child: TableCalendar(
+                            key: ValueKey(_allEvents.length),
+                            firstDay: DateTime.utc(2020, 1, 1),
+                            lastDay: DateTime.utc(2030, 12, 31),
+                            focusedDay: _focusedDay,
+                            selectedDayPredicate: (day) =>
+                                isSameDay(day, _selectedDay),
+                            onDaySelected: (selected, focused) {
+                              setState(() {
+                                _selectedDay = selected;
+                                _focusedDay = focused;
+                              });
+                            },
+                            eventLoader: getEventsForDay,
+                            headerStyle: const HeaderStyle(
+                              formatButtonVisible: false,
+                              titleCentered: true,
+                              titleTextStyle: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            calendarStyle: CalendarStyle(
+                              outsideDaysVisible: false,
+                              todayDecoration: BoxDecoration(
+                                color: primaryColor.withOpacity(0.1),
+                                shape: BoxShape.circle,
+                              ),
+                              selectedDecoration: BoxDecoration(
+                                color: primaryColor,
+                                shape: BoxShape.circle,
+                              ),
+                              todayTextStyle: TextStyle(
+                                color: primaryColor,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              selectedTextStyle: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            calendarBuilders: CalendarBuilders(
+                              markerBuilder: (context, date, events) {
+                                if (events.isEmpty) return null;
+                                return Positioned(
+                                  bottom: 6,
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: events.take(4).map((e) {
+                                      final Holiday holiday = e as Holiday;
+                                      final color = Color(holiday.safeColorCode);
+                                      return Container(
+                                        margin: const EdgeInsets.symmetric(
+                                            horizontal: 1.5),
+                                        width: 8,
+                                        height: 8,
+                                        decoration: BoxDecoration(
+                                          color: color,
+                                          shape: BoxShape.circle,
+                                          border: holiday.endDate != null
+                                              ? Border.all(
+                                                  color: Colors.white,
+                                                  width: 1.5)
+                                              : null,
+                                        ),
+                                      );
+                                    }).toList(),
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
                         ),
-                      );
-                    },
+                      ),
+
+                      // ---------- Date header ----------
+                      if (!showSearchPanel)
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(24, 14, 24, 10),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    DateFormat('EEEE').format(_selectedDay),
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: primaryColor,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    DateFormat('MMMM d, yyyy')
+                                        .format(_selectedDay),
+                                    style: const TextStyle(
+                                      fontSize: 22,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+
+                      // ---------- Events list ----------
+                      Expanded(
+                        child: showSearchPanel
+                            ? const SizedBox()
+                            : (eventsToday.isEmpty
+                                ? ListView(
+                                    padding: const EdgeInsets.fromLTRB(
+                                        16, 0, 16, 16),
+                                    children: const [
+                                      SizedBox(height: 40),
+                                      Center(
+                                        child: Column(
+                                          children: [
+                                            Icon(
+                                              Icons.event_note_outlined,
+                                              size: 64,
+                                              color: Colors.grey,
+                                            ),
+                                            SizedBox(height: 16),
+                                            Text(
+                                              'No events today',
+                                              style: TextStyle(
+                                                fontSize: 18,
+                                                fontWeight: FontWeight.w500,
+                                              ),
+                                            ),
+                                            SizedBox(height: 8),
+                                            Text('Tap + to add an event'),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  )
+                                : ListView.builder(
+                                    padding: const EdgeInsets.fromLTRB(
+                                        16, 0, 16, 16),
+                                    itemCount: eventsToday.length,
+                                    itemBuilder: (context, index) {
+                                      final event = eventsToday[index];
+                                      return Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                            vertical: 4),
+                                        child: _EventCard(
+                                          event: event,
+                                          onEdit: () => _editEvent(event),
+                                          onDelete: () => _deleteEvent(event),
+                                        ),
+                                      );
+                                    },
+                                  )),
+                      ),
+                    ],
                   ),
-                ),
+
+                  // ✅ ONE overlay only (full screen)
+                  if (showSearchPanel)
+                    Positioned.fill(
+                      child: _searchOverlay(
+                        surfaceColor: surfaceColor,
+                        primaryColor: primaryColor,
+                        scaffoldColor: scaffoldColor,
+                      ),
+                    ),
+                ],
               ),
             ),
-          ),
-
-          // Selected day header
-          if (_searchResults.isEmpty)
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          DateFormat('EEEE').format(_selectedDay),
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: primaryColor,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          DateFormat('MMMM d, yyyy').format(_selectedDay),
-                          style: const TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-          // Events list or empty
-          if (_searchResults.isEmpty)
-            () {
-              final eventsToday = getEventsForDay(_selectedDay);
-              if (eventsToday.isNotEmpty) {
-                return SliverList(
-                  delegate: SliverChildBuilderDelegate((context, index) {
-                    final event = eventsToday[index];
-                    return Padding(
-                      padding: EdgeInsets.fromLTRB(
-                        24,
-                        index == 0 ? 0 : 8,
-                        24,
-                        index == eventsToday.length - 1 ? 24 : 8,
-                      ),
-                      child: _EventCard(
-                        event: event,
-                        onEdit: () => _editEvent(event),
-                        onDelete: () => _deleteEvent(event),
-                      ),
-                    );
-                  }, childCount: eventsToday.length),
-                );
-              } else {
-                return const SliverFillRemaining(
-                  hasScrollBody: false,
-                  child: Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.event_note_outlined,
-                          size: 64,
-                          color: Colors.grey,
-                        ),
-                        SizedBox(height: 16),
-                        Text(
-                          'No events today',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        SizedBox(height: 8),
-                        Text('Tap + to add an event'),
-                      ],
-                    ),
-                  ),
-                );
-              }
-            }(),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -575,6 +588,7 @@ class _EventCard extends StatelessWidget {
   final Holiday event;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
+
   const _EventCard({
     required this.event,
     required this.onEdit,
@@ -715,6 +729,7 @@ class _EventDetailsSheet extends StatelessWidget {
   final Holiday event;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
+
   const _EventDetailsSheet({
     required this.event,
     required this.onEdit,
@@ -749,9 +764,8 @@ class _EventDetailsSheet extends StatelessWidget {
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
               color: color.withOpacity(0.1),
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(28),
-              ),
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(28)),
             ),
             child: Row(
               children: [
@@ -783,7 +797,8 @@ class _EventDetailsSheet extends StatelessWidget {
                       const SizedBox(height: 4),
                       Text(
                         event.type,
-                        style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                        style:
+                            TextStyle(fontSize: 14, color: Colors.grey[600]),
                       ),
                     ],
                   ),
@@ -796,15 +811,13 @@ class _EventDetailsSheet extends StatelessWidget {
             child: Column(
               children: [
                 _DetailRow(
-                  icon: Icons.calendar_today,
-                  title: 'Date',
-                  value: dateDisplay,
-                ),
+                    icon: Icons.calendar_today, title: 'Date', value: dateDisplay),
                 const SizedBox(height: 16),
                 _DetailRow(
                   icon: Icons.access_time,
                   title: 'Time',
-                  value: event.time != null ? event.time!.format(context) : 'All day',
+                  value:
+                      event.time != null ? event.time!.format(context) : 'All day',
                 ),
                 if (event.description != null) ...[
                   const SizedBox(height: 16),
@@ -831,8 +844,7 @@ class _EventDetailsSheet extends StatelessWidget {
                       foregroundColor: Colors.red,
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
+                          borderRadius: BorderRadius.circular(14)),
                     ),
                     child: const Text('Delete'),
                   ),
@@ -849,8 +861,7 @@ class _EventDetailsSheet extends StatelessWidget {
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
+                          borderRadius: BorderRadius.circular(14)),
                     ),
                     child: const Text('Edit'),
                   ),
@@ -884,6 +895,7 @@ class _DetailRow extends StatelessWidget {
   final IconData icon;
   final String title;
   final String value;
+
   const _DetailRow({
     required this.icon,
     required this.title,
